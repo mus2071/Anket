@@ -1,0 +1,520 @@
+{% extends "base.html" %}
+{% block baslik %}{{ anket.baslik }}{% endblock %}
+{% block ekstra_css %}
+<style>
+.gorunum-sec{display:flex;gap:6px;margin-bottom:1.25rem;background:var(--gri-ac);border-radius:var(--r-lg);padding:5px}
+.gorunum-sec button{flex:1;padding:8px 6px;border:none;background:transparent;border-radius:var(--r);font-size:13px;font-weight:500;cursor:pointer;color:var(--metin-ik);transition:all .15s;white-space:nowrap}
+.gorunum-sec button.aktif{background:var(--yuzey);color:var(--ana);box-shadow:0 1px 4px rgba(0,0,0,.1);font-weight:700}
+.ilerleme-ust{margin-bottom:1.25rem}
+.adim-bilgi{display:flex;justify-content:space-between;font-size:12px;color:var(--metin-ik);margin-bottom:5px}
+.ilerleme-kap{background:var(--gri-ac);border-radius:20px;height:8px;overflow:hidden}
+.ilerleme-dolu{height:100%;background:var(--ana);border-radius:20px;transition:width .4s ease}
+.bolum-adim{display:none}
+.bolum-adim.aktif{display:block;animation:gelis .25s ease}
+@keyframes gelis{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+.adim-nav{display:flex;gap:10px;margin-top:1rem}
+.adim-nav .btn{flex:1;padding:13px;font-size:15px;justify-content:center}
+.checkbox-grup{display:flex;flex-direction:column;gap:7px}
+.checkbox-opt{display:flex;align-items:center;gap:10px;padding:10px 13px;border:1.5px solid var(--kenar);border-radius:var(--r);cursor:pointer;font-size:14px;color:var(--metin);transition:all .12s;-webkit-tap-highlight-color:transparent}
+.checkbox-opt:hover{background:var(--ana-ac);border-color:var(--ana)}
+.checkbox-opt.isaretli{background:var(--ana-ac);border-color:var(--ana)}
+.checkbox-opt input[type=checkbox]{accent-color:var(--ana);width:18px;height:18px;cursor:pointer;flex-shrink:0}
+.soru-hata{outline:2.5px solid var(--kirmizi)!important;border-radius:var(--r-lg)!important;animation:soru-hata-titreme .4s ease;background:var(--kirmizi-ac,#fef2f2)!important}
+@keyframes soru-hata-titreme{0%,100%{transform:translateX(0)}20%,60%{transform:translateX(-5px)}40%,80%{transform:translateX(5px)}}
+.soru[data-gizli="1"]{display:none!important}
+.secim-opt.isaretli{background:var(--ana-ac);border-color:var(--ana);color:var(--ana)}
+.opt-blok{display:flex;flex-direction:column;gap:0}
+.inline-mg-wrap{padding:6px 0 4px 0;animation:gelis .15s ease}
+.inline-mg-wrap input[type=text]{width:100%;padding:9px 12px;border:1.5px solid var(--ana-orta);border-radius:var(--r);font-size:14px;background:var(--ana-ac);color:var(--metin);outline:none;font-family:inherit}
+.inline-mg-wrap input[type=text]:focus{border-color:var(--ana);box-shadow:0 0 0 3px var(--ana-ac)}
+</style>
+{% endblock %}
+{% block icerik %}
+<div class="kap">
+  <div class="form-baslik">{{ anket.icon }} {{ anket.baslik }}</div>
+  {% if anket.aciklama %}
+  <p style="color:var(--metin-ik);font-size:14px;margin-bottom:1rem">{{ anket.aciklama }}</p>
+  {% endif %}
+
+  {% if gorunum_secim_goster %}
+  <div class="gorunum-sec">
+    <button id="btnAdim" onclick="gorunumDegis('adim')" class="{% if anket_gorunum=='adim' %}aktif{% endif %}">
+      📋 Adım Adım
+    </button>
+    <button id="btnTek" onclick="gorunumDegis('tek')" class="{% if anket_gorunum=='tek' %}aktif{% endif %}">
+      📄 Tek Sayfa
+    </button>
+  </div>
+  {% endif %}
+
+  <div id="ilerlemeBolum" style="display:{% if anket_gorunum=='adim' %}block{% else %}none{% endif %}">
+    <div class="adim-bilgi">
+      <span id="adimYazi">Bölüm 1 / {{ anket.bolumler|length }}</span>
+      <span id="adimYuzde">{{ (1.0 / anket.bolumler|length * 100)|int }}%</span>
+    </div>
+    <div class="ilerleme-kap">
+      <div class="ilerleme-dolu" id="ilerlemeDolu" style="width:{{ (1.0 / anket.bolumler|length * 100)|int }}%"></div>
+    </div>
+  </div>
+
+  <form method="POST" id="anketForm" novalidate>
+
+    {# ── ADIM ADIM MOD ── #}
+    {% for bolum in anket.bolumler %}
+    <div class="bolum-adim {% if loop.first %}aktif{% endif %}"
+         data-adim="{{ loop.index0 }}"
+         style="display:{% if anket_gorunum=='adim' %}{% if loop.first %}block{% else %}none{% endif %}{% else %}none{% endif %}">
+      <div class="bolum">
+        {% if bolum.get('gorsel') %}
+        <img src="{{ bolum.gorsel }}" style="width:100%;max-height:200px;object-fit:cover;border-radius:var(--r);margin-bottom:.75rem;display:block">
+        {% endif %}
+        <div class="bolum-baslik">
+          <span class="bolum-no">{{ loop.index }}</span> {{ bolum.baslik }}
+        </div>
+        {% for soru in bolum.sorular %}
+        {% set gizli = soru.kosul_soru_id is not none %}
+        <div class="soru"
+             data-soru-id="{{ soru.id }}"
+             data-kosul-sid="{{ soru.kosul_soru_id or '' }}"
+             data-kosul-deger="{{ soru.kosul_deger or '' }}"
+             data-gizli="{% if gizli %}1{% else %}0{% endif %}">
+          <div class="soru-metin">{{ soru.metin }}{% if soru.zorunlu %}<span class="zorunlu">*</span>{% endif %}</div>
+          {% if soru.gorsel %}
+          <img src="{{ soru.gorsel }}" style="max-width:100%;max-height:200px;border-radius:var(--r);margin-bottom:8px;display:block">
+          {% endif %}
+          {% if soru.tip=="yildiz" %}
+          <div class="yildiz-grup">
+            {% for i in [5,4,3,2,1] %}
+            <input type="radio" name="s_{{ soru.id }}" id="ya{{ soru.id }}_{{ i }}" value="{{ i }}"
+                   {% if soru.zorunlu and not gizli %}required{% endif %} data-zorunlu="{{ soru.zorunlu }}">
+            <label for="ya{{ soru.id }}_{{ i }}">★</label>
+            {% endfor %}
+          </div>
+          {% elif soru.tip=="secim" %}
+          <div class="secim-grup">
+            {% for opt in soru.secenekler %}
+            {% set opt_m = opt.metin if opt is mapping else opt %}
+            {% set opt_mg = opt.mg if opt is mapping else 0 %}
+            {% set opt_mz = opt.mz if opt is mapping else 0 %}
+            {% set opt_ph = opt.ph if opt is mapping else '' %}
+            <div class="opt-blok">
+              <label class="secim-opt" onclick="secimRenkle(this)">
+                <input type="radio" name="s_{{ soru.id }}" value="{{ opt_m }}"
+                       {% if soru.zorunlu and not gizli %}required{% endif %}
+                       data-zorunlu="{{ soru.zorunlu }}"
+                       data-mg="{{ opt_mg }}" data-mz="{{ opt_mz }}" data-ph="{{ opt_ph | e }}"
+                       data-optidx="{{ loop.index0 }}"
+                       onchange="kosulKontrol();digerKontrolInline(this,'a_s_{{ soru.id }}')">
+                {{ opt_m }}
+              </label>
+              {% if opt_mg %}
+              <div class="inline-mg-wrap" id="a_s_{{ soru.id }}_{{ loop.index0 }}" style="display:none">
+                <input type="text" name="s_{{ soru.id }}_diger"
+                       placeholder="{{ opt_ph if opt_ph else 'Lütfen belirtin...' }}">
+              </div>
+              {% endif %}
+            </div>
+            {% endfor %}
+          </div>
+          {% elif soru.tip=="coklu" %}
+          <div class="checkbox-grup">
+            {% for opt in soru.secenekler %}
+            {% set opt_m = opt.metin if opt is mapping else opt %}
+            {% set opt_mg = opt.mg if opt is mapping else 0 %}
+            {% set opt_mz = opt.mz if opt is mapping else 0 %}
+            {% set opt_ph = opt.ph if opt is mapping else '' %}
+            <div class="opt-blok">
+              <label class="checkbox-opt">
+                <input type="checkbox" name="s_{{ soru.id }}" value="{{ opt_m }}"
+                       data-mg="{{ opt_mg }}" data-mz="{{ opt_mz }}" data-ph="{{ opt_ph | e }}"
+                       data-optidx="{{ loop.index0 }}"
+                       onchange="checkboxStil(this);digerKontrolInlineCoklu(this,'a_s_{{ soru.id }}')">
+                {{ opt_m }}
+              </label>
+              {% if opt_mg %}
+              <div class="inline-mg-wrap" id="a_s_{{ soru.id }}_{{ loop.index0 }}" style="display:none">
+                <input type="text" name="s_{{ soru.id }}_diger"
+                       placeholder="{{ opt_ph if opt_ph else 'Lütfen belirtin...' }}">
+              </div>
+              {% endif %}
+            </div>
+            {% endfor %}
+          </div>
+          {% elif soru.tip=="evet_hayir" %}
+          <div class="secim-grup" style="flex-direction:row">
+            {% for opt in ["Evet","Hayır"] %}
+            <label class="secim-opt" style="flex:1;justify-content:center" onclick="secimRenkle(this)">
+              <input type="radio" name="s_{{ soru.id }}" value="{{ opt }}"
+                     {% if soru.zorunlu and not gizli %}required{% endif %}
+                     data-zorunlu="{{ soru.zorunlu }}" onchange="kosulKontrol()" style="display:none">
+              {{ opt }}
+            </label>
+            {% endfor %}
+          </div>
+          {% elif soru.tip=="sayi" %}
+          <input type="number" name="s_{{ soru.id }}" min="0" placeholder="Sayı giriniz" style="max-width:160px">
+          {% else %}
+          <textarea name="s_{{ soru.id }}" placeholder="Görüşünüzü buraya yazın..."></textarea>
+          {% endif %}
+        </div>
+        {% endfor %}
+      </div>
+      <div class="adim-nav">
+        {% if not loop.first %}<button type="button" class="btn btn-gri" onclick="adimGit(-1)">← Geri</button>{% endif %}
+        {% if loop.last %}
+        <button type="submit" class="btn btn-ana">✓ Anketi Gönder</button>
+        {% else %}
+        <button type="button" class="btn btn-ana" onclick="adimGit(1)">İleri →</button>
+        {% endif %}
+      </div>
+    </div>
+    {% endfor %}
+
+    {# ── TEK SAYFA MOD ── #}
+    {% for bolum in anket.bolumler %}
+    <div class="bolum" style="margin-bottom:1rem;display:{% if anket_gorunum=='tek' %}block{% else %}none{% endif %}" data-tek-bolum>
+      {% if bolum.get('gorsel') %}
+      <img src="{{ bolum.gorsel }}" style="width:100%;max-height:200px;object-fit:cover;border-radius:var(--r);margin-bottom:.75rem;display:block">
+      {% endif %}
+      <div class="bolum-baslik">
+        <span class="bolum-no">{{ loop.index }}</span> {{ bolum.baslik }}
+      </div>
+      {% for soru in bolum.sorular %}
+      {% set gizli = soru.kosul_soru_id is not none %}
+      <div class="soru"
+           data-soru-id="{{ soru.id }}"
+           data-kosul-sid="{{ soru.kosul_soru_id or '' }}"
+           data-kosul-deger="{{ soru.kosul_deger or '' }}"
+           data-gizli="{% if gizli %}1{% else %}0{% endif %}">
+        <div class="soru-metin">{{ soru.metin }}{% if soru.zorunlu %}<span class="zorunlu">*</span>{% endif %}</div>
+        {% if soru.gorsel %}
+        <img src="{{ soru.gorsel }}" style="max-width:100%;max-height:200px;border-radius:var(--r);margin-bottom:8px;display:block">
+        {% endif %}
+        {% if soru.tip=="yildiz" %}
+        <div class="yildiz-grup">
+          {% for i in [5,4,3,2,1] %}
+          <input type="radio" name="s_{{ soru.id }}" id="yt{{ soru.id }}_{{ i }}" value="{{ i }}"
+                 data-zorunlu="{{ soru.zorunlu }}">
+          <label for="yt{{ soru.id }}_{{ i }}">★</label>
+          {% endfor %}
+        </div>
+        {% elif soru.tip=="secim" %}
+        <div class="secim-grup">
+          {% for opt in soru.secenekler %}
+          {% set opt_m = opt.metin if opt is mapping else opt %}
+          {% set opt_mg = opt.mg if opt is mapping else 0 %}
+          {% set opt_mz = opt.mz if opt is mapping else 0 %}
+          {% set opt_ph = opt.ph if opt is mapping else '' %}
+          <div class="opt-blok">
+            <label class="secim-opt" onclick="secimRenkle(this)">
+              <input type="radio" name="s_{{ soru.id }}" value="{{ opt_m }}"
+                     data-zorunlu="{{ soru.zorunlu }}"
+                     data-mg="{{ opt_mg }}" data-mz="{{ opt_mz }}" data-ph="{{ opt_ph | e }}"
+                     data-optidx="{{ loop.index0 }}"
+                     onchange="kosulKontrol();digerKontrolInline(this,'t_s_{{ soru.id }}')">
+              {{ opt_m }}
+            </label>
+            {% if opt_mg %}
+            <div class="inline-mg-wrap" id="t_s_{{ soru.id }}_{{ loop.index0 }}" style="display:none">
+              <input type="text" name="s_{{ soru.id }}_diger"
+                     placeholder="{{ opt_ph if opt_ph else 'Lütfen belirtin...' }}">
+            </div>
+            {% endif %}
+          </div>
+          {% endfor %}
+        </div>
+        {% elif soru.tip=="coklu" %}
+        <div class="checkbox-grup">
+          {% for opt in soru.secenekler %}
+          {% set opt_m = opt.metin if opt is mapping else opt %}
+          {% set opt_mg = opt.mg if opt is mapping else 0 %}
+          {% set opt_mz = opt.mz if opt is mapping else 0 %}
+          {% set opt_ph = opt.ph if opt is mapping else '' %}
+          <div class="opt-blok">
+            <label class="checkbox-opt">
+              <input type="checkbox" name="s_{{ soru.id }}" value="{{ opt_m }}"
+                     data-mg="{{ opt_mg }}" data-mz="{{ opt_mz }}" data-ph="{{ opt_ph | e }}"
+                     data-optidx="{{ loop.index0 }}"
+                     onchange="checkboxStil(this);digerKontrolInlineCoklu(this,'t_s_{{ soru.id }}')">
+              {{ opt_m }}
+            </label>
+            {% if opt_mg %}
+            <div class="inline-mg-wrap" id="t_s_{{ soru.id }}_{{ loop.index0 }}" style="display:none">
+              <input type="text" name="s_{{ soru.id }}_diger"
+                     placeholder="{{ opt_ph if opt_ph else 'Lütfen belirtin...' }}">
+            </div>
+            {% endif %}
+          </div>
+          {% endfor %}
+        </div>
+        {% elif soru.tip=="evet_hayir" %}
+        <div class="secim-grup" style="flex-direction:row">
+          {% for opt in ["Evet","Hayır"] %}
+          <label class="secim-opt" style="flex:1;justify-content:center" onclick="secimRenkle(this)">
+            <input type="radio" name="s_{{ soru.id }}" value="{{ opt }}"
+                   data-zorunlu="{{ soru.zorunlu }}" onchange="kosulKontrol()" style="display:none">
+            {{ opt }}
+          </label>
+          {% endfor %}
+        </div>
+        {% elif soru.tip=="sayi" %}
+        <input type="number" name="s_{{ soru.id }}" min="0" placeholder="Sayı giriniz" style="max-width:160px">
+        {% else %}
+        <textarea name="s_{{ soru.id }}" placeholder="Görüşünüzü buraya yazın..."></textarea>
+        {% endif %}
+      </div>
+      {% endfor %}
+    </div>
+    {% endfor %}
+
+    <div id="tekGonderBtn" style="display:{% if anket_gorunum=='tek' %}block{% else %}none{% endif %};margin-top:.5rem">
+      <button type="submit" class="btn btn-ana btn-tam" style="padding:14px;font-size:16px">✓ Anketi Gönder</button>
+    </div>
+  </form>
+
+  <p style="text-align:center;font-size:12px;color:var(--metin-uc);margin-top:1rem">
+    * ile işaretli alanlar zorunludur. Yanıtlar anonim kaydedilir.
+  </p>
+</div>
+
+<script>
+var mevcutMod = "{{ anket_gorunum }}";
+var mevcutAdim = 0;
+var toplamAdim = {{ anket.bolumler|length }};
+var soruKosullar = {{ sorular_json|safe }};
+
+function gorunumDegis(mod) {
+  mevcutMod = mod;
+  mevcutAdim = 0;
+  var btnA = document.getElementById('btnAdim');
+  var btnT = document.getElementById('btnTek');
+  if(btnA) btnA.classList.toggle('aktif', mod==='adim');
+  if(btnT) btnT.classList.toggle('aktif', mod==='tek');
+  document.getElementById('ilerlemeBolum').style.display = mod==='adim'?'block':'none';
+  document.querySelectorAll('.bolum-adim').forEach(function(el,i){
+    if(mod==='adim'){ el.style.display=i===0?'block':'none'; el.classList.toggle('aktif',i===0); }
+    else { el.style.display='none'; el.classList.remove('aktif'); }
+  });
+  document.querySelectorAll('[data-tek-bolum]').forEach(function(el){
+    el.style.display = mod==='tek'?'block':'none';
+  });
+  document.getElementById('tekGonderBtn').style.display = mod==='tek'?'block':'none';
+  zorunluGuncelle();
+  ilerlemeGuncelle();
+  setTimeout(yukseklikGonder, 100);
+}
+
+function zorunluGuncelle() {
+  document.querySelectorAll('#anketForm input[data-zorunlu="1"], #anketForm textarea[data-zorunlu="1"]').forEach(function(inp){
+    var soru = inp.closest('.soru');
+    if(!soru || soru.dataset.gizli==='1'){ inp.removeAttribute('required'); return; }
+    // Tek sayfa modunda native required devre dışı — JS validasyonu ile handle ediyoruz
+    if(mevcutMod==='tek'){ inp.removeAttribute('required'); return; }
+    var adimDiv = inp.closest('.bolum-adim');
+    if(adimDiv && adimDiv.classList.contains('aktif')) inp.setAttribute('required','');
+    else inp.removeAttribute('required');
+  });
+}
+
+function _soruHataGoster(soruEl, ilk) {
+  soruEl.classList.add('soru-hata');
+  if(ilk) {
+    // scrollIntoView ile sayfanın iframe içinde olup olmadığını dikkate al
+    try { soruEl.scrollIntoView({behavior:'smooth', block:'center'}); } catch(e){}
+    window.parent && window.parent.postMessage({scrollToEl: true}, '*');
+  }
+  setTimeout(function(){ soruEl.classList.remove('soru-hata'); }, 4000);
+}
+
+// ── Tek sayfa modunda hangi soru elemanları geçerli? ──
+// KRITIK: form içinde hem adım adım (.bolum-adim) hem tek sayfa ([data-tek-bolum])
+// elemanları var. Yanlış olanı taramak kullanıcıya hiçbir şey göstermez.
+function _gecerliSorular() {
+  var sonuc = [];
+  var tumSorular = document.querySelectorAll('#anketForm .soru:not([data-gizli="1"])');
+  tumSorular.forEach(function(soruEl) {
+    if (mevcutMod === 'adim') {
+      // Adım modunda: sadece aktif adımdaki sorular
+      var adim = soruEl.closest('.bolum-adim');
+      if (!adim || !adim.classList.contains('aktif')) return;
+    } else {
+      // Tek sayfa modunda: sadece [data-tek-bolum] içindeki görünür sorular
+      if (!soruEl.closest('[data-tek-bolum]')) return;
+    }
+    sonuc.push(soruEl);
+  });
+  return sonuc;
+}
+
+// Zorunlu alanları doğrular. Hatalıları kırmızı işaretle, ilkine scroll yap.
+// Temiz ise true, hata varsa false döner.
+function _dogrulaKap() {
+  var hataliSorular = [];
+  var gorulmusRadio = {};
+
+  _gecerliSorular().forEach(function(soruEl) {
+    // 1) Radio/yıldız/evet-hayır — zorunluysa en az biri seçili olmalı
+    var radios = soruEl.querySelectorAll('input[data-zorunlu="1"][type=radio]');
+    if (radios.length > 0) {
+      var ad = radios[0].name;
+      if (!gorulmusRadio[ad]) {
+        gorulmusRadio[ad] = true;
+        // Formun tamamında bu name ile checked input var mı?
+        var secildi = document.querySelector('[name="' + ad + '"]:checked');
+        if (!secildi) hataliSorular.push(soruEl);
+      }
+    }
+
+    // 2) Açılan inline metin alanı zorunluysa dolu olmalı
+    soruEl.querySelectorAll('.inline-mg-wrap').forEach(function(wrap) {
+      if (wrap.style.display === 'none') return;
+      var txt = wrap.querySelector('input[type=text]');
+      if (txt && txt.required && txt.value.trim() === '') {
+        if (hataliSorular.indexOf(soruEl) === -1) hataliSorular.push(soruEl);
+      }
+    });
+
+    // 3) Zorunlu textarea
+    soruEl.querySelectorAll('textarea[data-zorunlu="1"]').forEach(function(ta) {
+      if (ta.value.trim() === '') {
+        if (hataliSorular.indexOf(soruEl) === -1) hataliSorular.push(soruEl);
+      }
+    });
+  });
+
+  if (hataliSorular.length === 0) return true;
+  hataliSorular.forEach(function(el, i) { _soruHataGoster(el, i === 0); });
+  return false;
+}
+
+function adimGit(yon) {
+  if(yon > 0) {
+    if(!_dogrulaKap()) return;
+  }
+  var adimlar = document.querySelectorAll('.bolum-adim');
+  adimlar[mevcutAdim].classList.remove('aktif');
+  adimlar[mevcutAdim].style.display='none';
+  mevcutAdim = Math.max(0, Math.min(toplamAdim-1, mevcutAdim+yon));
+  adimlar[mevcutAdim].classList.add('aktif');
+  adimlar[mevcutAdim].style.display='block';
+  secimRenkleriRestore();
+  zorunluGuncelle();
+  ilerlemeGuncelle();
+  window.scrollTo({top:0,behavior:'smooth'});
+  setTimeout(yukseklikGonder, 350);
+}
+
+function ilerlemeGuncelle() {
+  if(mevcutMod!=='adim') return;
+  var yuzde = Math.round(((mevcutAdim+1)/toplamAdim)*100);
+  document.getElementById('ilerlemeDolu').style.width = yuzde+'%';
+  document.getElementById('adimYazi').textContent = 'Bölüm '+(mevcutAdim+1)+' / '+toplamAdim;
+  document.getElementById('adimYuzde').textContent = yuzde+'%';
+}
+
+function kosulKontrol() {
+  Object.keys(soruKosullar).forEach(function(sid){
+    var k = soruKosullar[sid];
+    if(!k.kosul_soru_id) return;
+    var tetik = document.querySelector('[name="s_'+k.kosul_soru_id+'"]:checked');
+    var goster = tetik && tetik.value === k.kosul_deger;
+    document.querySelectorAll('[data-soru-id="'+sid+'"]').forEach(function(soruEl){
+      soruEl.dataset.gizli = goster?'0':'1';
+      if(!goster){
+        soruEl.querySelectorAll('input,textarea').forEach(function(inp){
+          inp.removeAttribute('required');
+          if(inp.type!=='radio'&&inp.type!=='checkbox') inp.value='';
+          else inp.checked=false;
+        });
+      }
+    });
+  });
+  setTimeout(yukseklikGonder, 100);
+}
+
+function checkboxStil(el) {
+  el.closest('.checkbox-opt').classList.toggle('isaretli', el.checked);
+}
+
+/* ─── Seçim renkleme (radio ve evet/hayır) ─── */
+function secimRenkle(label) {
+  var grup = label.closest('.secim-grup');
+  if (!grup) return;
+  grup.querySelectorAll('.secim-opt').forEach(function(l) { l.classList.remove('isaretli'); });
+  label.classList.add('isaretli');
+}
+// Tüm checked radio'lara isaretli class uygula (adım geçişi ve sayfa yükü için)
+function secimRenkleriRestore() {
+  document.querySelectorAll('#anketForm input[type=radio]:checked').forEach(function(inp){
+    var lbl = inp.closest('.secim-opt');
+    if (!lbl) return;
+    var gr = lbl.closest('.secim-grup');
+    if (!gr) return;
+    gr.querySelectorAll('.secim-opt').forEach(function(l){ l.classList.remove('isaretli'); });
+    lbl.classList.add('isaretli');
+  });
+}
+
+/* ─── Metin girişi — tekli seçim (radio): seçeneğin hemen altına inline ─── */
+function digerKontrolInline(inp, prefix) {
+  var soruEl = inp.closest('.soru');
+  // Bu soru içindeki tüm inline wrap'leri gizle ve input'ları temizle
+  soruEl.querySelectorAll('.inline-mg-wrap').forEach(function(d){
+    var t = d.querySelector('input[type=text]');
+    if(t){ t.required = false; t.value = ''; }
+    d.style.display = 'none';
+  });
+  // Seçilen seçenek mg=1 ise kendi wrap'ini göster
+  if(inp.dataset.mg === '1'){
+    var divId = prefix + '_' + inp.dataset.optidx;
+    var wrap = document.getElementById(divId);
+    if(wrap){
+      wrap.style.display = 'block';
+      var txt = wrap.querySelector('input[type=text]');
+      if(txt){
+        txt.required = inp.dataset.mz === '1';
+        txt.placeholder = inp.dataset.ph || 'Lütfen belirtin...';
+      }
+    }
+  }
+  setTimeout(yukseklikGonder, 100);
+}
+
+/* ─── Metin girişi — çoklu seçim (checkbox): seçeneğin hemen altına inline ─── */
+function digerKontrolInlineCoklu(cb, prefix) {
+  if(cb.dataset.mg !== '1') return;
+  var divId = prefix + '_' + cb.dataset.optidx;
+  var wrap = document.getElementById(divId);
+  if(!wrap) return;
+  wrap.style.display = cb.checked ? 'block' : 'none';
+  var txt = wrap.querySelector('input[type=text]');
+  if(txt){
+    txt.required = cb.checked && cb.dataset.mz === '1';
+    if(cb.checked){
+      txt.placeholder = cb.dataset.ph || 'Lütfen belirtin...';
+    } else {
+      txt.value = '';
+      txt.required = false;
+    }
+  }
+  setTimeout(yukseklikGonder, 100);
+}
+
+function yukseklikGonder() {
+  var h = Math.max(document.body.scrollHeight, document.documentElement.scrollHeight, document.body.offsetHeight);
+  window.parent.postMessage({iframeHeight: h + 60}, '*');
+}
+
+// Form submit — her iki modda da metin alanlarını doğrula
+document.getElementById('anketForm').addEventListener('submit', function(e){
+  if(!_dogrulaKap()){ e.preventDefault(); }
+});
+
+// Başlat
+secimRenkleriRestore();
+zorunluGuncelle();
+window.addEventListener('load', yukseklikGonder);
+window.addEventListener('resize', yukseklikGonder);
+new MutationObserver(function(){setTimeout(yukseklikGonder,50);}).observe(document.body,{childList:true,subtree:true,attributes:true});
+</script>
+{% endblock %}

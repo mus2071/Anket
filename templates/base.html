@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="tr" data-tema="{{ tema }}">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{% block baslik %}Okul Anketi{% endblock %} — {{ okul_adi }}</title>
+<link rel="stylesheet" href="/static/css/style.css">
+{% block ekstra_css %}{% endblock %}
+<style>
+  /* iFrame içinde html/body asla kendi kaydırma çubuğu göstermesin */
+  html, body {
+    overflow-x: hidden;
+    /* overflow-y kasıtlı açık — JS yüksekliği hesaplamak için gerekli */
+  }
+</style>
+</head>
+<body>
+<header class="site-header">
+  <div class="header-ic">
+    <a href="/" class="logo-bolum">
+      {% if amblem %}
+        <img src="{{ amblem }}" class="amblem-img" alt="Amblem">
+      {% else %}
+        <div class="amblem-placeholder">🏫</div>
+      {% endif %}
+      <div>
+        <div class="okul-adi-header">{{ okul_adi }}</div>
+        {% if okul_sehir %}<div class="okul-sehir-header">{{ okul_sehir }}</div>{% endif %}
+      </div>
+    </a>
+    <nav class="header-nav">
+      <a href="/" class="header-link">Ana Sayfa</a>
+    </nav>
+  </div>
+</header>
+<main>{% block icerik %}{% endblock %}</main>
+
+<script>
+(function() {
+  // ── iFrame otomatik yükseklik ──────────────────────────────
+  // Çalışma prensibi:
+  //   1. Sayfanın gerçek yüksekliğini ölç
+  //   2. postMessage ile üst pencereye (okul sitesi) bildir
+  //   3. Üst pencere iFrame'in height'ını günceller
+  //   4. iFrame'in kendi scrollbar'ı böylece hiç oluşmaz
+
+  var enSon = 0;
+
+  function olc() {
+    // Tüm yükseklik ölçüm yöntemlerinin maksimumu
+    var h = Math.max(
+      document.body.getBoundingClientRect().bottom,
+      document.body.scrollHeight,
+      document.body.offsetHeight,
+      document.documentElement.scrollHeight,
+      document.documentElement.offsetHeight
+    );
+    // Yuvarlama payı: mobil tarayıcılar bazen 1-2px eksik ölçer
+    h = Math.ceil(h) + 32;
+    // Küçülme engeli: sayfa içeriği azalsa bile ani küçülmeyi önle
+    // (adım geçişinde bir sonraki adım yüklenene kadar eski yükseklik korunsun)
+    if (h > enSon) enSon = h;
+    window.parent.postMessage({ iframeHeight: enSon }, '*');
+  }
+
+  // Sayfa tamamen yüklenince
+  if (document.readyState === 'complete') { olc(); }
+  else { window.addEventListener('load', olc); }
+
+  // DOM değişince (adım geçişi, koşullu sorular, form submit)
+  var obs = new MutationObserver(function() { setTimeout(olc, 50); });
+  obs.observe(document.body, { childList: true, subtree: true, attributes: true });
+
+  // Ekran döndürme / klavye açılma
+  window.addEventListener('resize', function() {
+    enSon = 0; // sıfırla — yeni boyut hesaplansın
+    setTimeout(olc, 400);
+  });
+
+  // Sayfa değişince (teşekkür sayfasına geçiş vb.) sıfırla
+  window.addEventListener('beforeunload', function() { enSon = 0; });
+
+  // Güvenlik taraması: 500ms'de bir kontrol
+  setInterval(function() { olc(); }, 500);
+})();
+</script>
+</body>
+</html>
