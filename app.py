@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, redirect, url_for, session, send_file, jsonify
+from flask import Flask, render_template, request, redirect, url_for, session, send_file, jsonify, make_response
 import sqlite3, json, os, io, base64, smtplib, qrcode
 from datetime import datetime
 from functools import wraps
@@ -239,6 +239,11 @@ def anket(anket_id):
     if not aktif:
         ctx=gctx(); ctx["mesaj"]=msg; ctx["anket"]=a
         return render_template("anket_kapali.html",**ctx)
+    # ── Tekrar doldurma kontrolü (cookie bazlı) ──
+    cookie_key = f"dolduruldu_{anket_id}"
+    if request.cookies.get(cookie_key) == "1":
+        ctx=gctx(); ctx["anket"]=a
+        return render_template("zaten_dolduruldu.html",**ctx)
     if request.method=="POST":
         v={k:request.form.getlist(k) if k.endswith("[]") else val
            for k,val in request.form.items()}
@@ -266,7 +271,12 @@ def anket(anket_id):
             f"<h3>{a['icon']} {a['baslik']}</h3><p>Yeni bir yanıt alındı.</p>"
             f"<p><b>Tarih:</b> {datetime.now().strftime('%d.%m.%Y %H:%M')}</p>"
         )
-        return redirect(url_for("tesekkur",anket_id=anket_id))
+        # Cookie set et, teşekkür sayfasına yönlendir
+        resp = make_response(redirect(url_for("tesekkur", anket_id=anket_id)))
+        resp.set_cookie(cookie_key, "1",
+                        max_age=60*60*24*365,  # 1 yıl
+                        httponly=True, samesite="Lax")
+        return resp
     # Sadece aktif bölüm ve soruları filtrele
     a["bolumler"] = [b for b in a["bolumler"] if b.get("aktif",1)!=0]
     for b in a["bolumler"]:
@@ -287,6 +297,7 @@ def anket(anket_id):
     ctx["gorunum_secim_goster"] = ayar("anket_gorunum_secim_goster","1") == "1"
     ctx["anket_varsayilan"] = varsayilan
     return render_template("anket.html",**ctx)
+
 
 @app.route("/tesekkur/<int:anket_id>")
 def tesekkur(anket_id):
@@ -523,6 +534,16 @@ def yanit_sil(yid):
     with db() as c:
         c.execute("DELETE FROM yanitlar WHERE id=?",(yid,)); c.commit()
     return redirect(request.referrer or url_for("admin_panel"))
+
+
+@app.route("/admin/cookie_sifirla/<int:anket_id>", methods=["POST"])
+@giris_gerekli
+def admin_cookie_sifirla(anket_id):
+    """Kendi tarayıcısındaki anket tamamlanma cookie'sini sıfırlar (test amaçlı)."""
+    cookie_key = f"dolduruldu_{anket_id}"
+    resp = make_response(redirect(request.referrer or url_for("admin_anketler")))
+    resp.delete_cookie(cookie_key)
+    return resp
 
 # ─── QR Kod ──────────────────────────────────────────────────────
 @app.route("/admin/qr/<int:anket_id>")
