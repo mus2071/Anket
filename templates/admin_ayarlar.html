@@ -302,6 +302,55 @@
     </div>
   </div>
 
+
+<!-- ══ TAM YEDEKLEME PANELİ ══ -->
+<div style="border-top:2px solid var(--kenar);margin-top:2rem;padding-top:1.5rem">
+  <div style="font-size:15px;font-weight:800;margin-bottom:1rem;display:flex;align-items:center;gap:8px">
+    💾 Tüm Ayarlar Yedekleme
+    <span style="font-size:11px;font-weight:400;color:var(--metin-ik)">Ayarlar + Anket yapıları</span>
+  </div>
+
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:1rem">
+
+    <!-- İndir -->
+    <div style="background:var(--ana-ac);border:1.5px solid var(--ana-orta);border-radius:var(--r-lg);padding:1rem">
+      <div style="font-size:13px;font-weight:700;color:var(--ana);margin-bottom:.5rem">⬇ Tam Yedeği İndir</div>
+      <div style="font-size:12px;color:var(--metin-ik);margin-bottom:.75rem;line-height:1.5">
+        Tüm görsel ayarlar, SMTP, anket yapıları (bölüm + sorular) tek JSON dosyasına kaydedilir.
+        Şifreler yedeklenmez.
+      </div>
+      <a href="/admin/tam_yedek/indir" class="btn btn-ana btn-kucuk">💾 Yedeği İndir</a>
+    </div>
+
+    <!-- Yükle -->
+    <div style="background:var(--yuzey);border:1.5px solid var(--kenar);border-radius:var(--r-lg);padding:1rem">
+      <div style="font-size:13px;font-weight:700;margin-bottom:.5rem">⬆ Yedekten Geri Yükle</div>
+      <div style="font-size:12px;color:var(--metin-ik);margin-bottom:.75rem;line-height:1.5">
+        JSON yedek dosyasını yükleyin. Mevcut yanıtlar <strong>korunur</strong>.
+        Aynı başlıklı anketler atlanır.
+      </div>
+      <form method="POST" action="/admin/tam_yedek/yukle" enctype="multipart/form-data">
+        <input type="file" name="tam_yedek_dosya" accept=".json" required
+               style="font-size:12px;margin-bottom:.6rem;display:block;width:100%;box-sizing:border-box">
+        <label style="display:flex;align-items:center;gap:6px;font-size:12px;margin-bottom:.6rem;cursor:pointer">
+          <input type="checkbox" name="yukle_anketler" value="1"
+                 style="accent-color:var(--ana);width:15px;height:15px">
+          Anket yapılarını da geri yükle
+        </label>
+        <button type="submit" class="btn btn-ana btn-kucuk"
+                onclick="return confirm('Ayarlar geri yüklenecek. Emin misiniz?')">⬆ Geri Yükle</button>
+      </form>
+    </div>
+
+  </div>
+
+  {% if request.args.get('yedek_yuklendi') %}
+  <div style="margin-top:.75rem;background:var(--yesil-ac);border:1px solid var(--yesil);border-radius:var(--r);padding:.6rem 1rem;font-size:13px;color:var(--yesil);font-weight:600">
+    ✅ Yedek başarıyla geri yüklendi!
+  </div>
+  {% endif %}
+</div>
+
   <button type="submit" class="btn btn-ana btn-tam" style="padding:14px;font-size:16px">
     💾 Tüm Ayarları Kaydet
   </button>

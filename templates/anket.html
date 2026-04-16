@@ -58,6 +58,8 @@
   </div>
 
   <form method="POST" id="anketForm" novalidate>
+    <!-- localStorage tekrar doldurum kontrolü -->
+    <input type="hidden" name="_ls_dolduruldu" id="_ls_dolduruldu" value="0">
 
     {# ── ADIM ADIM MOD ── #}
     {% for bolum in anket.bolumler %}
@@ -400,7 +402,9 @@ function adimGit(yon) {
   secimRenkleriRestore();
   zorunluGuncelle();
   ilerlemeGuncelle();
+  // Hem kendi sayfayı hem de iframe parent'ı en üste kaydır
   window.scrollTo({top:0,behavior:'smooth'});
+  try { window.parent.scrollTo({top: window.frameElement ? window.frameElement.getBoundingClientRect().top + window.parent.scrollY - 16 : 0, behavior:'smooth'}); } catch(e){}
   setTimeout(yukseklikGonder, 350);
 }
 
@@ -513,6 +517,36 @@ document.getElementById('anketForm').addEventListener('submit', function(e){
 // Başlat
 secimRenkleriRestore();
 zorunluGuncelle();
+
+// ── localStorage tekrar doldurma kontrolü ──
+(function(){
+  var ANKET_ID = {{ anket.id }};
+  var LS_KEY = 'anket_dolduruldu_' + ANKET_ID;
+  if(localStorage.getItem(LS_KEY) === '1'){
+    // Gizli alanı set et — sunucu da kontrol edecek
+    document.getElementById('_ls_dolduruldu').value = '1';
+    // Sayfayı zaten dolduruldu görünümüne çevir
+    var form = document.getElementById('anketForm');
+    if(form) form.style.display = 'none';
+    var kap = document.querySelector('.kap');
+    if(kap){
+      var uyari = document.createElement('div');
+      uyari.style.cssText = 'text-align:center;padding:2rem';
+      uyari.innerHTML = '<div style="font-size:52px;margin-bottom:1rem">🔒</div>' +
+        '<h2 style="font-size:20px;font-weight:800;margin-bottom:.5rem">Bu anketi zaten doldurdunuz</h2>' +
+        '<p style="font-size:14px;color:var(--metin-ik);margin-bottom:1.5rem">Bu cihazdan daha önce yanıt gönderilmiş.</p>' +
+        '<a href="/" class="btn btn-ana">Ana Sayfaya Dön</a>';
+      kap.appendChild(uyari);
+    }
+  }
+})();
+
+// Form gönderilince localStorage'a kaydet
+document.getElementById('anketForm').addEventListener('submit', function(){
+  var ANKET_ID = {{ anket.id }};
+  try { localStorage.setItem('anket_dolduruldu_' + ANKET_ID, '1'); } catch(e){}
+});
+
 window.addEventListener('load', yukseklikGonder);
 window.addEventListener('resize', yukseklikGonder);
 new MutationObserver(function(){setTimeout(yukseklikGonder,50);}).observe(document.body,{childList:true,subtree:true,attributes:true});

@@ -239,12 +239,20 @@ def anket(anket_id):
     if not aktif:
         ctx=gctx(); ctx["mesaj"]=msg; ctx["anket"]=a
         return render_template("anket_kapali.html",**ctx)
-    # ── Tekrar doldurma kontrolü (cookie bazlı) ──
+    # ── Tekrar doldurma kontrolü (cookie + session bazlı) ──
     cookie_key = f"dolduruldu_{anket_id}"
-    if request.cookies.get(cookie_key) == "1":
+    session_key = f"yanit_{anket_id}"
+    zaten_doldurdu = (request.cookies.get(cookie_key) == "1" or
+                      session.get(session_key) == 1)
+    if zaten_doldurdu:
         ctx=gctx(); ctx["anket"]=a
         return render_template("zaten_dolduruldu.html",**ctx)
     if request.method=="POST":
+        # Gizli alan ile localStorage kontrolü — JS kayıtlıysa bunu gönderir
+        ls_flag = request.form.get("_ls_dolduruldu","")
+        if ls_flag == "1":
+            ctx=gctx(); ctx["anket"]=a
+            return render_template("zaten_dolduruldu.html",**ctx)
         v={k:request.form.getlist(k) if k.endswith("[]") else val
            for k,val in request.form.items()}
         # checkbox alanlarını düzgün topla
@@ -271,7 +279,8 @@ def anket(anket_id):
             f"<h3>{a['icon']} {a['baslik']}</h3><p>Yeni bir yanıt alındı.</p>"
             f"<p><b>Tarih:</b> {datetime.now().strftime('%d.%m.%Y %H:%M')}</p>"
         )
-        # Cookie set et, teşekkür sayfasına yönlendir
+        # Cookie + session kaydet, teşekkür sayfasına yönlendir
+        session[session_key] = 1
         resp = make_response(redirect(url_for("tesekkur", anket_id=anket_id)))
         resp.set_cookie(cookie_key, "1",
                         max_age=60*60*24*365,  # 1 yıl
@@ -541,9 +550,98 @@ def yanit_sil(yid):
 def admin_cookie_sifirla(anket_id):
     """Kendi tarayıcısındaki anket tamamlanma cookie'sini sıfırlar (test amaçlı)."""
     cookie_key = f"dolduruldu_{anket_id}"
+    session_key = f"yanit_{anket_id}"
+    session.pop(session_key, None)  # session'dan da sil
     resp = make_response(redirect(request.referrer or url_for("admin_anketler")))
     resp.delete_cookie(cookie_key)
     return resp
+
+
+# ─── Tam Yedekleme (Tüm Ayarlar + Tüm Anketler) ─────────────────
+@app.route("/admin/tam_yedek/indir")
+@giris_gerekli
+def tam_yedek_indir():
+    """Tüm ayarları ve anket yapılarını tek JSON dosyasında indirir."""
+    with db() as c:
+        ayarlar_raw = c.execute("SELECT anahtar, deger FROM ayarlar").fetchall()
+        anketler_raw = c.execute("SELECT * FROM anketler ORDER BY sira").fetchall()
+    ayarlar_dict = {r["anahtar"]: r["deger"] for r in ayarlar_raw}
+    # Hassas bilgileri yedekten çıkar
+    hassas = {"admin_sifre","smtp_pass"}
+    ayarlar_temiz = {k:v for k,v in ayarlar_dict.items() if k not in hassas}
+    anket_listesi = []
+    for a in anketler_raw:
+        anket_obj = dict(a)
+        with db() as c:
+            bolumler_raw = c.execute("SELECT * FROM bolumler WHERE anket_id=? ORDER BY sira",(a["id"],)).fetchall()
+        bolum_listesi = []
+        for b in bolumler_raw:
+            with db() as c:
+                sorular_raw = c.execute("SELECT * FROM sorular WHERE bolum_id=? ORDER BY sira",(b["id"],)).fetchall()
+            bolum_listesi.append({
+                "baslik": b["baslik"], "sira": b["sira"], "aktif": b["aktif"],
+                "gorsel": b["gorsel"],
+                "sorular": [dict(s) for s in sorular_raw]
+            })
+        anket_obj["bolumler"] = bolum_listesi
+        anket_listesi.append(anket_obj)
+    tam_yedek = {
+        "versiyon": "tam_v1",
+        "tarih": datetime.now().strftime("%Y-%m-%d %H:%M"),
+        "ayarlar": ayarlar_temiz,
+        "anketler": anket_listesi
+    }
+    js = json.dumps(tam_yedek, ensure_ascii=False, indent=2)
+    buf = io.BytesIO(js.encode("utf-8"))
+    fn = f"tam_yedek_{datetime.now().strftime('%Y%m%d_%H%M')}.json"
+    return send_file(buf, mimetype="application/json",
+                     download_name=fn, as_attachment=True)
+
+@app.route("/admin/tam_yedek/yukle", methods=["POST"])
+@giris_gerekli
+def tam_yedek_yukle():
+    """Tam yedek dosyasını geri yükler (ayarlar + anket yapıları, yanıtlar korunur)."""
+    f = request.files.get("tam_yedek_dosya")
+    if not f or not f.filename.endswith(".json"):
+        return "Geçersiz dosya.", 400
+    try:
+        veri = json.loads(f.read().decode("utf-8"))
+    except Exception:
+        return "Dosya okunamadı.", 400
+    if veri.get("versiyon") != "tam_v1":
+        return "Bu dosya tam yedek formatında değil.", 400
+    with db() as c:
+        # Ayarları geri yükle (şifre alanlarına dokunma)
+        hassas = {"admin_sifre","smtp_pass"}
+        for k, v in veri.get("ayarlar", {}).items():
+            if k in hassas: continue
+            c.execute("INSERT OR REPLACE INTO ayarlar VALUES (?,?)", (k, v))
+        # Anket yapılarını geri yükle (sadece yoksa ekle — yanıtları bozma)
+        yukle_anketler = request.form.get("yukle_anketler","0") == "1"
+        if yukle_anketler:
+            for anket_obj in veri.get("anketler", []):
+                # Aynı başlıkta anket varsa atla
+                mevcut = c.execute("SELECT id FROM anketler WHERE baslik=?",(anket_obj["baslik"],)).fetchone()
+                if mevcut: continue
+                aid = c.execute(
+                    "INSERT INTO anketler (rol,baslik,icon,aktif,sira,aciklama,gorunum) VALUES (?,?,?,?,?,?,?)",
+                    (anket_obj.get("rol","diger"), anket_obj["baslik"], anket_obj.get("icon","📝"),
+                     anket_obj.get("aktif",1), anket_obj.get("sira",99),
+                     anket_obj.get("aciklama",""), anket_obj.get("gorunum","varsayilan"))
+                ).lastrowid
+                for bi, bolum in enumerate(anket_obj.get("bolumler",[])):
+                    bid = c.execute(
+                        "INSERT INTO bolumler (anket_id,baslik,sira,aktif,gorsel) VALUES (?,?,?,?,?)",
+                        (aid, bolum["baslik"], bolum.get("sira",bi), bolum.get("aktif",1), bolum.get("gorsel",""))
+                    ).lastrowid
+                    for si, soru in enumerate(bolum.get("sorular",[])):
+                        c.execute(
+                            "INSERT INTO sorular (bolum_id,metin,tip,secenekler,zorunlu,sira,aktif,gorsel) VALUES (?,?,?,?,?,?,?,?)",
+                            (bid, soru["metin"], soru["tip"], soru.get("secenekler","[]"),
+                             soru.get("zorunlu",1), soru.get("sira",si), soru.get("aktif",1), soru.get("gorsel",""))
+                        )
+        c.commit()
+    return redirect(url_for("admin_ayarlar") + "?yedek_yuklendi=1")
 
 # ─── QR Kod ──────────────────────────────────────────────────────
 @app.route("/admin/qr/<int:anket_id>")

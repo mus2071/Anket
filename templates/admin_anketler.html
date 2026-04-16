@@ -46,8 +46,8 @@
       <a href="/admin/sonuclar/{{ a.id }}" class="btn btn-gri btn-kucuk">📊 Sonuçlar</a>
       <a href="/admin/excel/{{ a.id }}" class="btn btn-gri btn-kucuk">⬇ Excel</a>
       <form method="POST" action="/admin/cookie_sifirla/{{ a.id }}"
-            title="Kendi tarayıcınızdaki bu ankete ait tamamlandı kaydını siler. Anketi tekrar test etmek için kullanın.">
-        <button type="submit" class="btn btn-gri btn-kucuk">🔓 Cookie Sıfırla</button>
+            title="SADECE KENDİ TARAYICINIZDA bu ankete ait tamamlandı kaydını siler. Test için kullanın.">
+        <button type="submit" class="btn btn-gri btn-kucuk" onclick="return confirm('Bu sadece KENDİ tarayıcınızdaki kaydı sıfırlar. Tekrar test etmek için devam edin.')">🔓 Testi Sıfırla</button>
       </form>
       <form method="POST" action="/admin/anket/{{ a.id }}/sil" onsubmit="return confirm('Bu anketi ve tüm yanıtları silmek istediğinizden emin misiniz?')">
         <button type="submit" class="btn btn-tehlike btn-kucuk">🗑 Sil</button>
