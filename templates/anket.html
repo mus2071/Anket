@@ -526,9 +526,13 @@ zorunluGuncelle();
 (function(){
   var ANKET_ID = {{ anket.id }};
   var LS_KEY = 'anket_dolduruldu_' + ANKET_ID;
-  // URL'de ?sifirla=1 varsa localStorage temizle (cookie_sifirla yönlendirmesi)
-  if(new URLSearchParams(window.location.search).get('sifirla') === '1'){
+  // ?sifirla=1 parametresi varsa localStorage'ı temizle (admin test sıfırlama)
+  if(window.location.search.indexOf('sifirla=1') !== -1){
     try { localStorage.removeItem(LS_KEY); } catch(e){}
+    // URL'den parametreyi temizle (sayfa yenilenmeden)
+    var cleanUrl = window.location.pathname;
+    history.replaceState(null, '', cleanUrl);
+    return;
   }
   if(localStorage.getItem(LS_KEY) === '1'){
     // Gizli alanı set et — sunucu da kontrol edecek
