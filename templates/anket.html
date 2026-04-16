@@ -30,6 +30,7 @@
 </style>
 {% endblock %}
 {% block icerik %}
+<div id="sayfa-ustu"></div>
 <div class="kap">
   <div class="form-baslik">{{ anket.icon }} {{ anket.baslik }}</div>
   {% if anket.aciklama %}
@@ -402,9 +403,12 @@ function adimGit(yon) {
   secimRenkleriRestore();
   zorunluGuncelle();
   ilerlemeGuncelle();
-  // Hem kendi sayfayı hem de iframe parent'ı en üste kaydır
-  window.scrollTo({top:0,behavior:'smooth'});
-  try { window.parent.scrollTo({top: window.frameElement ? window.frameElement.getBoundingClientRect().top + window.parent.scrollY - 16 : 0, behavior:'smooth'}); } catch(e){}
+  // iframe içinde üste kaydır (cross-origin parent erişimine gerek yok)
+  var ust = document.getElementById('sayfa-ustu');
+  if (ust) { ust.scrollIntoView({behavior: 'smooth', block: 'start'}); }
+  else { window.scrollTo({top: 0, behavior: 'smooth'}); }
+  // Parent sayfaya mesaj gönder (parent dinliyorsa kullanır)
+  try { window.parent.postMessage({anketScrollTop: true}, '*'); } catch(e){}
   setTimeout(yukseklikGonder, 350);
 }
 
