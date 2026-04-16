@@ -526,6 +526,10 @@ zorunluGuncelle();
 (function(){
   var ANKET_ID = {{ anket.id }};
   var LS_KEY = 'anket_dolduruldu_' + ANKET_ID;
+  // URL'de ?sifirla=1 varsa localStorage temizle (cookie_sifirla yönlendirmesi)
+  if(new URLSearchParams(window.location.search).get('sifirla') === '1'){
+    try { localStorage.removeItem(LS_KEY); } catch(e){}
+  }
   if(localStorage.getItem(LS_KEY) === '1'){
     // Gizli alanı set et — sunucu da kontrol edecek
     document.getElementById('_ls_dolduruldu').value = '1';
