@@ -140,7 +140,11 @@
         >✏️ Düzenle</button>
         <!-- Taşı -->
         <button class="btn btn-gri btn-kucuk" title="Farklı bölüme taşı"
-          onclick="tasiModalAc({{ soru.id }},'{{ soru.metin | replace(&quot;'&quot;,&quot;\\&#39;&quot;) | truncate(60,true) }}',{{ bolum.id }},{{ anket.id }})">↕ Taşı</button>
+          data-sid="{{ soru.id }}"
+          data-metin="{{ soru.metin | truncate(60,true) | e }}"
+          data-bid="{{ bolum.id }}"
+          data-aid="{{ anket.id }}"
+          onclick="tasiModalAc(this)">↕ Taşı</button>
         <!-- Sil -->
         <form method="POST" action="/admin/soru/{{ soru.id }}/sil" onsubmit="return confirm('Soruyu silmek istediğinizden emin misiniz?')"><input type="hidden" name="anket_id" value="{{ anket.id }}"><button type="submit" class="btn btn-tehlike btn-kucuk">✕</button></form>
       </div>
@@ -481,7 +485,11 @@ tipDegis('se'); tipDegis('sd');
 /* ─── Bölümler arası soru taşıma ─── */
 var BOLUMLER_JSON = {{ anket.bolumler | tojson }};
 
-function tasiModalAc(sid, soruMetin, mevcutBid, anketId) {
+function tasiModalAc(btn) {
+  var sid = parseInt(btn.dataset.sid);
+  var soruMetin = btn.dataset.metin;
+  var mevcutBid = parseInt(btn.dataset.bid);
+  var anketId = parseInt(btn.dataset.aid);
   document.getElementById('tasiSoruId').value = sid;
   document.getElementById('tasiAnketId').value = anketId;
   document.getElementById('tasiMevcutBid').value = mevcutBid;
