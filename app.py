@@ -548,12 +548,11 @@ def yanit_sil(yid):
 @app.route("/admin/cookie_sifirla/<int:anket_id>", methods=["POST"])
 @giris_gerekli
 def admin_cookie_sifirla(anket_id):
-    """Cookie + session siler; localStorage da temizlensin diye ankete ?sifirla=1 ile yönlendirir."""
+    """Kendi tarayıcısındaki anket tamamlanma cookie'sini sıfırlar (test amaçlı)."""
     cookie_key = f"dolduruldu_{anket_id}"
     session_key = f"yanit_{anket_id}"
-    session.pop(session_key, None)
-    anket_url = url_for("anket", anket_id=anket_id) + "?sifirla=1"
-    resp = make_response(redirect(anket_url))
+    session.pop(session_key, None)  # session'dan da sil
+    resp = make_response(redirect(request.referrer or url_for("admin_anketler")))
     resp.delete_cookie(cookie_key)
     return resp
 
@@ -896,6 +895,26 @@ def soru_toggle_aktif(sid):
             c.execute("UPDATE sorular SET aktif=? WHERE id=?",(yeni,sid))
             c.commit()
     return redirect(url_for("admin_anket_duzenle",aid=aid))
+
+
+@app.route("/admin/soru/<int:sid>/bolum_degistir", methods=["POST"])
+@giris_gerekli
+def soru_bolum_degistir(sid):
+    """Soruyu farklı bir bölüme taşır."""
+    aid = int(request.form["anket_id"])
+    hedef_bid = int(request.form["hedef_bolum_id"])
+    with db() as c:
+        # Hedef bölümde en sona koy
+        max_sira = c.execute(
+            "SELECT COALESCE(MAX(sira),0) as ms FROM sorular WHERE bolum_id=?",
+            (hedef_bid,)
+        ).fetchone()["ms"]
+        c.execute(
+            "UPDATE sorular SET bolum_id=?, sira=? WHERE id=?",
+            (hedef_bid, max_sira + 1, sid)
+        )
+        c.commit()
+    return redirect(url_for("admin_anket_duzenle", aid=aid))
 
 # ─── Ayarlar ─────────────────────────────────────────────────────
 @app.route("/admin/ayarlar",methods=["GET","POST"])
