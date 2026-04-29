@@ -55,7 +55,7 @@
     <!-- Önizleme ikonu -->
     <div class="onizleme-kart" id="oniz_{{ a.id }}"
          style="background:{{ a.kart_renk if a.kart_renk and a.kart_renk != '#ffffff' else 'var(--gri-ac)' }};border-color:{{ a.kart_renk if a.kart_renk and a.kart_renk != '#ffffff' else 'var(--kenar)' }}">
-      <span id="oniz_ikon_{{ a.id }}" style="font-size:22px">{{ a.icon }}</span>
+      <span id="oniz_kart_ikon_{{ a.id }}" style="font-size:22px">{{ a.icon }}</span>
     </div>
     <div style="flex:1;min-width:0">
       <div style="font-weight:700;font-size:15px">{{ a.baslik }}</div>
@@ -132,7 +132,6 @@ var EMOJILER = [
 var _acikPop = null;
 
 function emojiPickerAc(aid) {
-  // Başka açık picker varsa kapat
   if (_acikPop && _acikPop !== aid) {
     document.getElementById('epop_' + _acikPop).classList.remove('acik');
   }
@@ -142,17 +141,27 @@ function emojiPickerAc(aid) {
     _acikPop = null;
     return;
   }
-  // İçeriği ilk açılışta doldur
   if (!pop.dataset.dolu) {
-    var html = '';
+    var frag = document.createDocumentFragment();
     EMOJILER.forEach(function(k) {
-      html += '<div class="emoji-kategori">' + k.kat + '</div><div class="emoji-grid">';
+      var lbl = document.createElement('div');
+      lbl.className = 'emoji-kategori';
+      lbl.textContent = k.kat;
+      frag.appendChild(lbl);
+      var grid = document.createElement('div');
+      grid.className = 'emoji-grid';
       k.liste.forEach(function(e) {
-        html += '<button type="button" class="emoji-btn" onclick="emojiSec('' + aid + '','' + e + '')" title="' + e + '">' + e + '</button>';
+        var btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'emoji-btn';
+        btn.title = e;
+        btn.textContent = e;
+        btn.addEventListener('click', function() { emojiSec(aid, e); });
+        grid.appendChild(btn);
       });
-      html += '</div>';
+      frag.appendChild(grid);
     });
-    pop.innerHTML = html;
+    pop.appendChild(frag);
     pop.dataset.dolu = '1';
   }
   pop.classList.add('acik');
@@ -160,16 +169,18 @@ function emojiPickerAc(aid) {
 }
 
 function emojiSec(aid, emoji) {
+  // Hidden input güncelle (form gönderiminde kullanılır)
   document.getElementById('ikon_inp_' + aid).value = emoji;
+  // Tetik butonu (emoji picker açan büyük buton)
   document.getElementById('oniz_ikon_' + aid).textContent = emoji;
-  // Kart önizlemesini de güncelle
-  var oniz = document.getElementById('oniz_' + aid);
-  if (oniz) oniz.querySelector('span') && (oniz.querySelector('span').textContent = emoji);
+  // Üstteki önizleme kartı
+  var kartIkon = document.getElementById('oniz_kart_ikon_' + aid);
+  if (kartIkon) kartIkon.textContent = emoji;
+  // Picker'ı kapat
   document.getElementById('epop_' + aid).classList.remove('acik');
   _acikPop = null;
 }
 
-// Dışarı tıklayınca kapat
 document.addEventListener('click', function(e) {
   if (_acikPop && !e.target.closest('.emoji-picker-pop') && !e.target.closest('.ikon-tetik')) {
     document.getElementById('epop_' + _acikPop).classList.remove('acik');
