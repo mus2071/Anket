@@ -1,6 +1,6 @@
 from flask import Flask, render_template, request, redirect, url_for, session, send_file, jsonify, make_response
 import sqlite3, json, os, io, base64, smtplib, qrcode
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from functools import wraps
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
@@ -68,6 +68,7 @@ def db_init():
             "smtp_pass": "",
             "bildirim_email": "",
             "bildirim_aktif": "0",
+            "saat_dilimi_offset": "3",
             "anket_varsayilan_gorunum": "adim",
             "anket_gorunum_secim_goster": "1",
             "hero_baslik": "",
@@ -146,6 +147,14 @@ def ayar(k, v=""):
         r=c.execute("SELECT deger FROM ayarlar WHERE anahtar=?",(k,)).fetchone()
     return r["deger"] if r else v
 
+def simdi():
+    """Ayardaki UTC offset'e göre şimdiki zamanı döndürür."""
+    try:
+        offset = int(ayar("saat_dilimi_offset", "3"))
+    except Exception:
+        offset = 3
+    return datetime.now(timezone(timedelta(hours=offset)))
+
 def ayar_set(k,v):
     with db() as c:
         c.execute("INSERT OR REPLACE INTO ayarlar VALUES (?,?)",(k,v)); c.commit()
@@ -173,7 +182,7 @@ def get_anket(aid):
         return result
 
 def anket_aktif_mi(a):
-    bugun = datetime.now().strftime("%Y-%m-%d")
+    bugun = simdi().strftime("%Y-%m-%d")
     if a.get("baslangic_tarihi") and bugun < a["baslangic_tarihi"]:
         return False, "Anket henüz başlamadı."
     if a.get("bitis_tarihi") and bugun > a["bitis_tarihi"]:
@@ -211,7 +220,7 @@ def email_gonder(konu, icerik):
 def anasayfa():
     with db() as c:
         anketler=c.execute("SELECT * FROM anketler WHERE aktif=1 ORDER BY sira").fetchall()
-    bugun=datetime.now().strftime("%Y-%m-%d")
+    bugun=simdi().strftime("%Y-%m-%d")
     liste=[]
     for a in anketler:
         ad=dict(a)
@@ -270,15 +279,15 @@ def anket(anket_id):
                 veriler[key] = veriler[key] + ': ' + diger_val
         with db() as c:
             c.execute("INSERT INTO yanitlar (anket_id,tarih,saat,veriler) VALUES (?,?,?,?)",
-                      (anket_id,datetime.now().strftime("%d.%m.%Y"),
-                       datetime.now().strftime("%H:%M"),
+                      (anket_id,simdi().strftime("%d.%m.%Y"),
+                       simdi().strftime("%H:%M"),
                        json.dumps(veriler,ensure_ascii=False)))
             c.commit()
         # E-posta bildirimi
         email_gonder(
             f"📋 Yeni Anket Yanıtı — {a['baslik']}",
             f"<h3>{a['icon']} {a['baslik']}</h3><p>Yeni bir yanıt alındı.</p>"
-            f"<p><b>Tarih:</b> {datetime.now().strftime('%d.%m.%Y %H:%M')}</p>"
+            f"<p><b>Tarih:</b> {simdi().strftime('%d.%m.%Y %H:%M')}</p>"
         )
         # Cookie + session kaydet, teşekkür sayfasına yönlendir
         session[session_key] = 1
@@ -588,13 +597,13 @@ def tam_yedek_indir():
         anket_listesi.append(anket_obj)
     tam_yedek = {
         "versiyon": "tam_v1",
-        "tarih": datetime.now().strftime("%Y-%m-%d %H:%M"),
+        "tarih": simdi().strftime("%Y-%m-%d %H:%M"),
         "ayarlar": ayarlar_temiz,
         "anketler": anket_listesi
     }
     js = json.dumps(tam_yedek, ensure_ascii=False, indent=2)
     buf = io.BytesIO(js.encode("utf-8"))
-    fn = f"tam_yedek_{datetime.now().strftime('%Y%m%d_%H%M')}.json"
+    fn = f"tam_yedek_{simdi().strftime('%Y%m%d_%H%M')}.json"
     return send_file(buf, mimetype="application/json",
                      download_name=fn, as_attachment=True)
 
@@ -941,7 +950,7 @@ def admin_ayarlar():
         for k in ["okul_adi","okul_sehir","admin_sifre","tema","anasayfa_gorunum",
                   "hosgeldin_metin","alt_yazi","smtp_host","smtp_port",
                   "smtp_user","smtp_pass","bildirim_email",
-                  "anket_varsayilan_gorunum",
+                  "anket_varsayilan_gorunum","saat_dilimi_offset",
                   "hero_baslik","hero_alt_baslik",
                   "hero_gorsel_genislik","hero_gorsel_sekil","hero_baslik_boyut","hero_alt_boyut"]:
             v=request.form.get(k)
@@ -982,7 +991,8 @@ def admin_ayarlar():
                 "smtp_host":ayar("smtp_host"),"smtp_port":ayar("smtp_port","587"),
                 "smtp_user":ayar("smtp_user"),"smtp_pass":ayar("smtp_pass"),
                 "bildirim_email":ayar("bildirim_email"),
-                "bildirim_aktif":ayar("bildirim_aktif","0")})
+                "bildirim_aktif":ayar("bildirim_aktif","0"),
+                "saat_dilimi_offset":ayar("saat_dilimi_offset","3")})
     return render_template("admin_ayarlar.html",**ctx)
 
 # ─── Excel ───────────────────────────────────────────────────────
@@ -1015,7 +1025,7 @@ def excel_indir(anket_id):
     for col in ws.columns:
         ws.column_dimensions[col[0].column_letter].width=22
     buf=io.BytesIO(); wb.save(buf); buf.seek(0)
-    fn=f"{a['baslik'][:20]}_{datetime.now().strftime('%Y%m%d')}.xlsx"
+    fn=f"{a['baslik'][:20]}_{simdi().strftime('%Y%m%d')}.xlsx"
     return send_file(buf,as_attachment=True,download_name=fn,
                      mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
 

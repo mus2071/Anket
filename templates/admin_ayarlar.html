@@ -262,6 +262,35 @@
     </div>
   </div>
 
+  <!-- Saat Dilimi -->
+  <div class="kart" style="margin-bottom:.75rem">
+    <div style="font-size:15px;font-weight:700;margin-bottom:.5rem">🕐 Saat Dilimi</div>
+    <p style="font-size:13px;color:var(--metin-ik);margin-bottom:1rem">
+      Sunucu saatinizden farklıysa burayı ayarlayın. Türkiye için <strong>+3</strong> giriniz.
+    </p>
+    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+      <label class="alan-lbl" style="margin:0">UTC +</label>
+      <input type="number" name="saat_dilimi_offset" min="-12" max="14" step="1"
+             value="{{ saat_dilimi_offset }}"
+             style="width:80px"
+             oninput="saatOnizle(this.value)">
+      <span id="saatOniz" style="font-size:13px;color:var(--metin-ik)"></span>
+    </div>
+    <script>
+    function saatOnizle(v) {
+      var el = document.getElementById('saatOniz');
+      var offset = parseInt(v) || 0;
+      var now = new Date();
+      var utc = now.getTime() + now.getTimezoneOffset() * 60000;
+      var tr = new Date(utc + offset * 3600000);
+      el.textContent = '→ Sunucu saati bu ayarla: ' +
+        tr.toLocaleTimeString('tr-TR', {hour:'2-digit', minute:'2-digit'}) +
+        ' ' + tr.toLocaleDateString('tr-TR');
+    }
+    saatOnizle({{ saat_dilimi_offset }});
+    </script>
+  </div>
+
   <!-- E-posta Bildirimi -->
   <div class="kart" style="margin-bottom:.75rem">
     <div style="font-size:15px;font-weight:700;margin-bottom:.5rem">📧 E-posta Bildirimi</div>
