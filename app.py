@@ -29,7 +29,8 @@ def db_init():
             baslangic_tarihi TEXT DEFAULT NULL,
             bitis_tarihi TEXT DEFAULT NULL,
             aciklama TEXT DEFAULT '',
-            gorunum TEXT DEFAULT 'varsayilan'
+            gorunum TEXT DEFAULT 'varsayilan',
+            kart_renk TEXT DEFAULT ''
         );
         CREATE TABLE IF NOT EXISTS bolumler (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -695,18 +696,33 @@ def admin_anket_duzenle(aid):
     ctx=gctx(); ctx["anket"]=a; ctx["tum_sorular"]=tum_sorular
     return render_template("admin_anket_duzenle.html",**ctx)
 
+
+@app.route("/admin/anket/<int:aid>/hizli_guncelle", methods=["POST"])
+@giris_gerekli
+def anket_hizli_guncelle(aid):
+    """İkon ve kart rengini hızlıca günceller."""
+    icon = request.form.get("icon", "").strip()
+    kart_renk = request.form.get("kart_renk", "").strip()
+    with db() as c:
+        if icon:
+            c.execute("UPDATE anketler SET icon=? WHERE id=?", (icon, aid))
+        c.execute("UPDATE anketler SET kart_renk=? WHERE id=?", (kart_renk, aid))
+        c.commit()
+    return redirect(url_for("admin_anketler"))
+
 @app.route("/admin/anket/<int:aid>/guncelle",methods=["POST"])
 @giris_gerekli
 def anket_guncelle(aid):
     with db() as c:
         c.execute("""UPDATE anketler SET baslik=?,icon=?,rol=?,aktif=?,
-                     aciklama=?,baslangic_tarihi=?,bitis_tarihi=?,gorunum=? WHERE id=?""",
+                     aciklama=?,baslangic_tarihi=?,bitis_tarihi=?,gorunum=?,kart_renk=? WHERE id=?""",
                   (request.form.get("baslik"),request.form.get("icon"),
                    request.form.get("rol"),1 if request.form.get("aktif") else 0,
                    request.form.get("aciklama",""),
                    request.form.get("baslangic_tarihi") or None,
                    request.form.get("bitis_tarihi") or None,
                    request.form.get("gorunum","varsayilan"),
+                   request.form.get("kart_renk",""),
                    aid)); c.commit()
     return redirect(url_for("admin_anket_duzenle",aid=aid))
 

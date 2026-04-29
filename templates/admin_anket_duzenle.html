@@ -50,6 +50,19 @@
       <div style="width:75px"><label class="alan-lbl">İkon</label><input type="text" name="icon" value="{{ anket.icon }}"></div>
       <div style="width:120px"><label class="alan-lbl">Rol</label><select name="rol">{% for r,l in [('ogrenci','Öğrenci'),('veli','Veli'),('ogretmen','Öğretmen'),('diger','Diğer')] %}<option value="{{ r }}" {% if anket.rol==r %}selected{% endif %}>{{ l }}</option>{% endfor %}</select></div>
       <div style="width:130px"><label class="alan-lbl">Görünüm</label><select name="gorunum"><option value="varsayilan" {% if (anket.gorunum or 'varsayilan')=='varsayilan' %}selected{% endif %}>🔄 Varsayılan</option><option value="adim" {% if anket.gorunum=='adim' %}selected{% endif %}>📋 Adım Adım</option><option value="tek" {% if anket.gorunum=='tek' %}selected{% endif %}>📄 Tek Sayfa</option></select></div>
+      <div style="width:110px">
+        <label class="alan-lbl">Kart Rengi</label>
+        <div style="display:flex;align-items:center;gap:6px">
+          <input type="color" name="kart_renk" id="kartRenkPicker"
+                 value="{{ anket.kart_renk if anket.kart_renk else '#ffffff' }}"
+                 style="width:40px;height:34px;border:1.5px solid var(--kenar);border-radius:var(--r);padding:2px;cursor:pointer;background:none">
+          <button type="button" class="btn btn-gri btn-kucuk" style="font-size:11px;padding:4px 8px"
+                  onclick="document.getElementById('kartRenkPicker').value='#ffffff';document.getElementById('kartRenkPicker').dispatchEvent(new Event('input'))">✕ Sıfırla</button>
+        </div>
+        <div style="font-size:10px;color:var(--metin-uc);margin-top:3px" id="renkOnizleme">
+          {% if anket.kart_renk %}Seçili: {{ anket.kart_renk }}{% else %}Varsayılan renk{% endif %}
+        </div>
+      </div>
     </div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;margin-top:.75rem">
       <div style="flex:1;min-width:140px"><label class="alan-lbl">Açıklama</label><input type="text" name="aciklama" value="{{ anket.aciklama or '' }}"></div>
@@ -481,6 +494,21 @@ function kosulSecenekDoldur(p,secilenDeger){
 }
 
 tipDegis('se'); tipDegis('sd');
+
+/* Renk önizleme */
+var rp = document.getElementById('kartRenkPicker');
+var ro = document.getElementById('renkOnizleme');
+if(rp && ro){
+  rp.addEventListener('input', function(){
+    var v = this.value;
+    if(v === '#ffffff' || v === '#FFFFFF'){
+      ro.textContent = 'Varsayılan renk';
+    } else {
+      ro.textContent = 'Seçili: ' + v;
+      ro.style.color = v;
+    }
+  });
+}
 
 /* ─── Bölümler arası soru taşıma ─── */
 var BOLUMLER_JSON = {{ anket.bolumler | tojson }};
