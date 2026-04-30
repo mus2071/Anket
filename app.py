@@ -558,11 +558,12 @@ def yanit_sil(yid):
 @app.route("/admin/cookie_sifirla/<int:anket_id>", methods=["POST"])
 @giris_gerekli
 def admin_cookie_sifirla(anket_id):
-    """Kendi tarayıcısındaki anket tamamlanma cookie'sini sıfırlar (test amaçlı)."""
+    """Cookie + session siler; localStorage temizlenmesi için ankete ?sifirla=1 ile yönlendirir."""
     cookie_key = f"dolduruldu_{anket_id}"
     session_key = f"yanit_{anket_id}"
-    session.pop(session_key, None)  # session'dan da sil
-    resp = make_response(redirect(request.referrer or url_for("admin_anketler")))
+    session.pop(session_key, None)
+    anket_url = url_for("anket", anket_id=anket_id) + "?sifirla=1"
+    resp = make_response(redirect(anket_url))
     resp.delete_cookie(cookie_key)
     return resp
 

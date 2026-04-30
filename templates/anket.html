@@ -526,6 +526,14 @@ zorunluGuncelle();
 (function(){
   var ANKET_ID = {{ anket.id }};
   var LS_KEY = 'anket_dolduruldu_' + ANKET_ID;
+
+  // Admin "Testi Sıfırla" → ?sifirla=1 ile gelindi: localStorage temizle, devam et
+  if(window.location.search.indexOf('sifirla=1') !== -1){
+    try { localStorage.removeItem(LS_KEY); } catch(e){}
+    history.replaceState(null, '', window.location.pathname);
+    return; // kilit ekranını gösterme
+  }
+
   if(localStorage.getItem(LS_KEY) === '1'){
     // Gizli alanı set et — sunucu da kontrol edecek
     document.getElementById('_ls_dolduruldu').value = '1';
