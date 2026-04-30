@@ -286,18 +286,53 @@ var mevcutAdim = 0;
 var toplamAdim = {{ anket.bolumler|length }};
 var soruKosullar = {{ sorular_json|safe }};
 
+function _modDegerleriniSenkronize(kaynakSelector, hedefSelector) {
+  // Kaynak set'teki tüm input/select/textarea değerlerini hedef set'e kopyala
+  var kaynaklar = document.querySelectorAll(kaynakSelector + ' input, ' + kaynakSelector + ' textarea, ' + kaynakSelector + ' select');
+  kaynaklar.forEach(function(src) {
+    if(!src.name) return;
+    var hedefler = document.querySelectorAll(hedefSelector + ' [name="' + src.name + '"]');
+    hedefler.forEach(function(dst) {
+      if(src.type === 'radio' || src.type === 'checkbox') {
+        if(src.value === dst.value) dst.checked = src.checked;
+      } else {
+        dst.value = src.value;
+      }
+    });
+  });
+}
+
 function gorunumDegis(mod) {
+  // Mod değişmeden önce mevcut değerleri senkronize et
+  if(mod !== mevcutMod) {
+    if(mevcutMod === 'adim') {
+      // Adım'dan Tek'e: adım inputlarını tek sayfaya kopyala
+      _modDegerleriniSenkronize('.bolum-adim', '[data-tek-bolum]');
+    } else {
+      // Tek'ten Adım'a: tek sayfa inputlarını adıma kopyala
+      _modDegerleriniSenkronize('[data-tek-bolum]', '.bolum-adim');
+      // Isaretli class'ları da güncelle
+      setTimeout(secimRenkleriRestore, 50);
+    }
+  }
   mevcutMod = mod;
-  mevcutAdim = 0;
   var btnA = document.getElementById('btnAdim');
   var btnT = document.getElementById('btnTek');
   if(btnA) btnA.classList.toggle('aktif', mod==='adim');
   if(btnT) btnT.classList.toggle('aktif', mod==='tek');
   document.getElementById('ilerlemeBolum').style.display = mod==='adim'?'block':'none';
-  document.querySelectorAll('.bolum-adim').forEach(function(el,i){
-    if(mod==='adim'){ el.style.display=i===0?'block':'none'; el.classList.toggle('aktif',i===0); }
-    else { el.style.display='none'; el.classList.remove('aktif'); }
-  });
+  if(mod === 'adim'){
+    // Adım modu: sadece mevcut adımı göster, adımı sıfırlama
+    document.querySelectorAll('.bolum-adim').forEach(function(el,i){
+      el.style.display = i===mevcutAdim ? 'block' : 'none';
+      el.classList.toggle('aktif', i===mevcutAdim);
+    });
+  } else {
+    // Tek sayfa modu: adım bölümlerini gizle
+    document.querySelectorAll('.bolum-adim').forEach(function(el){
+      el.style.display='none'; el.classList.remove('aktif');
+    });
+  }
   document.querySelectorAll('[data-tek-bolum]').forEach(function(el){
     el.style.display = mod==='tek'?'block':'none';
   });
@@ -537,16 +572,17 @@ zorunluGuncelle();
   if(localStorage.getItem(LS_KEY) === '1'){
     // Gizli alanı set et — sunucu da kontrol edecek
     document.getElementById('_ls_dolduruldu').value = '1';
-    // Sayfayı zaten dolduruldu görünümüne çevir
-    var form = document.getElementById('anketForm');
-    if(form) form.style.display = 'none';
+    // Sayfayı zaten dolduruldu görünümüne çevir — üst kısım dahil her şeyi gizle
     var kap = document.querySelector('.kap');
     if(kap){
+      // Kap içindeki her şeyi gizle
+      Array.from(kap.children).forEach(function(el){ el.style.display='none'; });
       var uyari = document.createElement('div');
-      uyari.style.cssText = 'text-align:center;padding:2rem';
-      uyari.innerHTML = '<div style="font-size:52px;margin-bottom:1rem">🔒</div>' +
-        '<h2 style="font-size:20px;font-weight:800;margin-bottom:.5rem">Bu anketi zaten doldurdunuz</h2>' +
-        '<p style="font-size:14px;color:var(--metin-ik);margin-bottom:1.5rem">Bu cihazdan daha önce yanıt gönderilmiş.</p>' +
+      uyari.style.cssText = 'text-align:center;padding:3rem 1rem';
+      uyari.innerHTML =
+        '<div style="font-size:64px;margin-bottom:1.25rem">🔒</div>' +
+        '<h2 style="font-size:22px;font-weight:800;margin-bottom:.625rem;color:var(--metin)">Bu anketi zaten doldurdunuz</h2>' +
+        '<p style="font-size:14px;color:var(--metin-ik);margin-bottom:1.75rem">Bu cihazdan daha önce yanıt gönderilmiş.</p>' +
         '<a href="/" class="btn btn-ana">Ana Sayfaya Dön</a>';
       kap.appendChild(uyari);
     }
